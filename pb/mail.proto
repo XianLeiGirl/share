@@ -1,0 +1,426 @@
+syntax = "proto3";
+
+
+package pb;
+
+import  "commons-go/validator/validator.proto";
+
+service Mail {
+    // 发送邮件
+    rpc Send(MailSystem.SendRequest) returns (MailSystem.SendResponse) {}
+
+    // 拉取邮件，同时也是心跳拉取
+    rpc Pull(MailSystem.PullRequest) returns (MailSystem.PullResponse){}
+
+    // 读取邮件(标记邮件是否已读取)
+    rpc Read(MailSystem.ReadRequest) returns (MailSystem.ReadResponse){}
+
+    // 领取附件
+    rpc Attach(MailSystem.AttachRequest) returns (MailSystem.AttachResponse){}
+
+    // 提交邮件（提交是指由运营或游戏中发放的全服邮件)
+    rpc Submit(MailSystem.SubmitRequest) returns (MailSystem.SubmitResponse){}
+
+    // 删除全局邮件
+    rpc DeleteGlobalMail(MailSystem.DeleteGlobalMailRequest) returns (MailSystem.DeleteGlobalMailResponse){}
+
+    // 移除邮件
+    rpc Remove(MailSystem.RemoveRequest) returns (MailSystem.RemoveResponse) {}
+
+    // 构建新环境，在同样名称的环境下，优先使用局部环境
+    // 新构建的环境，至少要在1秒钟之后才会生效
+    rpc NewGlobalEnv(MailSystem.NewGlobalEnvRequest) returns (MailSystem.NewGlobalEnvResponse) {}
+
+    // 删除环境，删除的环境要在1秒钟之后才会生效
+    rpc RemoveGlobalEnv(MailSystem.RemoveGlobalEnvRequest) returns (MailSystem.RemoveGlobalEnvResponse) {}
+}
+
+
+message MailSystem {
+    // 环境值，允许提供 string or float64, 不能提供int值，必须转成float64
+    // 表达式的字面值中只有数字类型与字符串类型，所有数字类型都为float64
+    message EnvValue {
+        oneof val {
+            string s = 1;
+            double f = 2;
+        }
+    }
+
+    // 环境的包装，加入持续时间
+    message EnvWrap {
+        EnvValue val = 1 [(validator.field) = {msg_exists: true}];
+        int64 duration = 2 [(validator.field) = {int_gt: -1}];   // 按秒,0:表示永久不失效
+    }
+
+    // 玩家信息
+    message PlayerInfo {
+        int64 id = 1 [(validator.field) = {int_gt: 0}];      //玩家id
+        string name = 2 [(validator.field) = {string_not_empty: true}];   //玩家名称
+
+        //其他数据,不作定义，一切符合protobuf格式的都可以，由游戏自行定义
+//        yq.protobuf.Any data = 3;
+        bytes data = 3;
+    }
+
+    // 系统信息
+    message SystemInfo {
+        string name = 1 [(validator.field) = {string_not_empty: true}];     //给系统取一个名字
+
+        //其他数据,不作定义，一切符合protobuf格式的都可以，由游戏自行定义
+//        yq.protobuf.Any data = 2;
+        bytes data = 2;
+    }
+
+    // 邮箱
+    message Box {
+        // @inject_tag: bson:"_id"
+        int64 playerId = 1;   //邮箱归属(玩家id)
+
+        int64 gOffset = 2; //全局邮件的偏移(偏移就是指目前已领取的最大邮件id)
+
+        int64 nextId = 3;    //邮件的下一个id
+
+        // 版本号，如果启用本地cache，用于与数据库中的版本核对的
+        int64 version = 4;
+
+        // @inject_tag: bson:"mails,omitempty"
+        map<int64, Mail> mails = 5;
+
+        // @inject_tag: bson:"gmails,omitempty"
+        map<int64, GlobalMail> gMails = 6;
+    }
+
+    // 邮件
+    message Mail {
+        int64 id = 1;     //邮件id
+
+        int64 receiverId = 2 [(validator.field) = {int_gt: 0}];   //接收者id
+        PlayerInfo sender = 3;     //发送者
+
+        string title = 4 [(validator.field) = {string_not_empty: true}];    //标题
+        string content = 5;  //内容
+
+        //是否读取 false: 未读取, true: 已读取
+        bool read = 6;
+
+        // 所有附件领取完成
+        bool allAttachDone = 7;
+
+        // 发送时间
+        int64 sendTime = 8;
+
+        // 到期时间，秒, 指终点时间，不是指间隔时间
+        int64 expireTime = 9;
+
+        // 附件数组
+        repeated Attachment attachArray = 10;
+
+        // 邮件扩展数据，由游戏进行解构，可以是一个4个字节的整型id,也可以是另外一个protobuf消息
+        // 也可以是一个json结构的字符串，随游戏决定
+        bytes extendData = 11;
+    }
+
+
+    // 全局邮件
+    message GlobalMail {
+        // @inject_tag: bson:"_id"
+        int64 id = 1;         //全局邮件id
+
+        // 脚本类型,默认为gval
+        string scriptType = 2;
+
+        // 条件脚本 用于玩家筛选邮件的条件，无:表示全服发放
+        string condScript = 3;
+
+        // 发送者
+        SystemInfo sender = 4;
+
+        // (可携带变量，如"${user}庆祝国庆")
+        string title = 5 [(validator.field) = {string_not_empty: true}];
+
+        // (可携带变量，如"${user}庆祝国庆")
+        string content = 6;
+
+        // 邮件模板
+        //Template tmpl = 5;
+
+        // 发送时间
+        int64 sendTime = 7;
+
+        // 到期时间，秒, 指终点时间，不是指间隔时间
+        int64 expireTime = 8;
+
+        // 附件数组
+        repeated Attachment attachArray = 9;
+
+        // 邮件扩展数据，由游戏进行解构，可以是一个4个字节的整型id,也可以是另外一个protobuf消息
+        // 也可以是一个json结构的字符串，随游戏决定
+        bytes extendData = 10;
+    }
+
+    // 附件
+    message Attachment {
+        //标记，false: 未领取, true: 已领取
+        bool mark = 1;
+
+        // 附件数据
+//        yq.protobuf.Any data = 2;
+        bytes data = 2;
+    }
+
+
+    // 发送邮件请求
+    message SendRequest {
+        // 不需要带邮件id,服务器会生成
+        Mail mail = 1 [(validator.field) = {msg_exists: true}];
+    }
+
+    // 发送邮件响应,(请求就是Mail)
+    message SendResponse {
+        enum StatusCode {
+            SUCCEED = 0;
+            // 拒绝，策略上选择的是拒绝，玩家邮件满时，拒绝收邮件
+            OVERFLOW_REFUSE = 1;
+        }
+
+        // 状态码，使用了上面 StatusCode的枚举，为避免c++奔溃
+        int32 status = 1;
+
+        // 非SUCCEED情况下的错误信息
+        string errInfo = 2;
+
+        // 只有SUCCEED情况下才有值，返回成功发送的邮件对像(带有邮件id)
+        Mail mail = 3;
+
+        // 本次移除的邮件id
+        repeated int64 removeMailIds = 4;
+    }
+
+
+    // 拉取邮件请求
+    message PullRequest {
+        // 玩家id
+        int64 playerId = 1 [(validator.field) = {int_gt: 0}];
+
+        //邮件偏移，目前收到的最大邮件id
+        int64 mailOffset = 2 [(validator.field) = {int_gt: -1}];
+
+        // 变量名 对应 变量值，值可以为空，说明要取全局环境变量(值为空，并不代表不给出key)
+        map<string, EnvValue> env = 3;
+    }
+
+    // 拉取邮件响应
+    message PullResponse{
+        // 拉取到的邮件
+        repeated Mail mails = 3;
+
+        // 本次操作移除的邮件id，比如拉取的时候，正好有邮件过期
+        repeated int64 removeMailIds = 4;
+    }
+
+
+    // 读取请求(这里不是读取邮件，是把邮件标记为已读取)
+    message ReadRequest {
+        enum Operator {
+            IN = 0;      //存在于
+            EQ = 1;      //等于
+            GT = 2;      //大于
+            GTE = 3;     //大于等于
+            LT = 4;      //小于
+            LTE = 5;     //小于等于
+        }
+
+        // 玩家id
+        int64 playerId = 1 [(validator.field) = {int_gt: 0}];
+
+        // 需要读取的邮件id表, 除IN外，其他的只会使用数组的第0个元素,默认操作是IN
+        repeated int64 ids = 2 [(validator.field) = {repeated_count_min: 1}];
+
+        // 本次请求使用的操作, 使用了上面 Operator 枚举，为避免c++使用奔溃
+        int32 op = 3[(validator.field) = {int_gte:0 int_lte:5}];
+
+        // true: 返回本次操作命中的邮件，否则不返回
+        bool needMails = 4;
+
+        // true: 返回所有已读邮件的id,包括不在本次操作内的, false: 只返回本次操作内命中的
+        bool allReturn = 5;
+    }
+
+    // 读取响应
+    message ReadResponse {
+        // 把已经设置为读取的邮件id返回，值会根据请求中的allReturn来决定
+        repeated int64 ids = 1;
+
+        // 本次操作命中的邮件返回,值会根据请求中的needMails来决定
+        repeated Mail mails = 2;
+    }
+
+    // 领取附件请求
+    // mailId没有值，说明领取所有未被领取的附件，否则领取指定邮件中指定索引的附件
+    message AttachRequest {
+        // 玩家id
+        int64 playerId = 1  [(validator.field) = {int_gt: 0}];
+
+        // 邮件id
+        int64 mailId = 2 [(validator.field) = {int_gt: -1}];
+
+        // 如果不存在任何元素，或为空，则是取mailId中的所有附件
+        repeated int32 attachIdxArray = 3;
+    }
+
+    // 附件响应
+    // 返回领取邮件的的附件数据
+    message AttachResponse {
+        enum StatusCode {
+            SUCCEED = 0;
+            MAIL_NOT_EXIST = 1;    // 邮件不存在
+            ATTACH_NOT_EXIST = 2;  // 附件不存在
+            MAIL_EXPIRE = 3;       // 邮件过期
+        }
+
+        // 状态码, 使用上面StatusCode枚举，为使c++不奔溃
+        int32 status = 1;
+
+
+        // 非 SUCCEED 情况下的错误信息
+        string errInfo = 2;
+
+        // key: 邮件id, values：邮件中已被领取的附件
+        // 只有在 SUCCEED 的情况下才存在
+        // 凡key对应的邮件id，均设置为已读了
+        map<int64, AttachmentPack> packs = 3;
+
+        // 本次移除的邮件id
+        repeated int64 removeMailIds = 4;
+    }
+
+    //附件包，领取附件响应中使用
+    message AttachmentPack {
+        repeated Attachment attachArray = 1;
+    }
+
+    // 提交邮件请求
+    message SubmitRequest {
+        // 全局邮件对像
+        GlobalMail gmail = 1 [(validator.field) = {msg_exists: true}];
+
+        // 测试参数，提交gmail时，如果存在测试参数，说明要测试脚本，只有测试成功了，才能添加全局邮件
+        // 变量名 对应 环境值， 值可以为空，空说明要取全局环境变量（值为空，不代表key不放置）
+        map<string, EnvValue> testParam = 2;
+    }
+
+    // 提交邮件响应（提交是指运营发放全服邮件，或游戏中发放全服邮件）
+    message SubmitResponse {
+        enum StatusCode {
+            SUCCEED = 0;
+
+            // 脚本测试失败
+            SCRIPT_TEST_FIAL = 1;
+        }
+
+        // 状态码, 使用上面的 StatusCode 枚举，为使c++不奔溃
+        int32 status = 1;
+
+        // 非 SUCCEED 情况下的错误信息
+        string errInfo = 2;
+
+        // 添加后的全局邮件id
+        int64 gmailid = 3;
+    }
+
+    // 删除全局邮件请求
+    message DeleteGlobalMailRequest {
+        repeated int64 ids = 1 [(validator.field) = {repeated_count_min: 1}];        //指定要删除的全局邮件
+    }
+
+    // 删除全局邮件响应
+    message DeleteGlobalMailResponse {
+        repeated int64 ids = 1;        //删除成功的全局邮件
+    }
+
+
+
+    // 移除请求（删除已存在的邮件）
+    message RemoveRequest {
+        enum Policy {
+            NO = 0;                  // 没有策略，无条件删除所有邮件
+            ATTACH = 1;              // 只删除没有附件的（包括附件已领的）
+            READ = 2;                // 只删除标记为已读的
+            READ_ATTACH = 3;         // 只删除标记为已读且不存在附件的(附件已领取视作无附件)
+        }
+
+        // 玩家id
+        int64 playerId = 1 [(validator.field) = {int_gt: 0}];
+
+        //移除策略,使用上面 Policy 枚举，为了使c++不奔溃.
+        int32 policy = 2[(validator.field) = {int_gte:0 int_lte:3}];
+
+        // 需要移除的邮件id表, 除IN外，其他的只会使用数组的第0个元素,默认操作是IN
+        repeated int64 ids = 3;
+
+        // 是否为一键删除
+        bool oneKeyRemove = 4;
+
+    }
+
+    // 移除响应
+    message RemoveResponse {
+        enum FailCause {
+            EXIST_ATTACH = 0;        //存在附件
+            UNREAD = 1;              //未读
+            MAIL_NOT_EXIST = 2;      //邮件不存在
+        }
+
+        // 本次成功移除的邮件id表
+        repeated int64 succIds = 1;
+
+        // 本次删除失败的邮件id，以及对应的失败原因, value里的值使用的是FailCause的值
+        map<int64, int32> failIds = 4;
+    }
+
+
+    // 构建新的全局环境请求(如果只是取最新的全局环境，env放空就行）
+    message NewGlobalEnvRequest {
+        // 提交给服务器的新环境
+        map<string, EnvWrap> env = 1;
+    }
+
+    //
+    message NewGlobalEnvResponse {
+        // 拿到最新的所有环境,这个所有环境不是1秒后的，而是完全最新的，也就是说响应拿到的是最新的
+        // 但系统本身是需要1秒后才能更新到本次提交的最新环境
+        // 本次响应的所有环境是包括本次提交或修改的，以及以前存在的。
+        map<string, EnvValue> env = 1;
+
+        // 本次设置成功的env，给出来的都是环境的名称，这里指的是本次操作成功的
+        repeated string succKeys = 2;
+
+    }
+
+    // 移除全局环境请求
+    message RemoveGlobalEnvRequest {
+        repeated string keys = 1 [(validator.field) = {repeated_count_min: 1}];
+    }
+
+    message RemoveGlobalEnvResponse {
+        enum StatusCode {
+            SUCCEED = 0;
+
+            //加载全部环境失败但删除成功了,如果状态为此值，则下面env里就没有值
+            LOAD_FAIL_WITH_DEL_SUCC = 1;
+        }
+
+        // 状态码, 使用 StatusCode 的枚举值，为c++不奔溃
+        int32 status = 1[(validator.field) = {int_gte:0 int_lte:1}];
+
+        // 非 SUCCEED 下的错误信息
+        string errInfo = 2;
+
+        // 拿到最新的所有环境,这个所有环境不是1秒后的，而是完全最新的,这里指的是所有还未被删除的
+        // 但系统本身要在1秒后才能更新到删除的环境
+        map<string, EnvValue> env = 3;
+    }
+}
+
+
+

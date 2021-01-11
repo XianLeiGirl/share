@@ -1,0 +1,153 @@
+syntax = "proto2";
+package validator;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "gitlab.gg.com/game_framework/commons-go/validator;validator";
+
+extend google.protobuf.FieldOptions {
+    optional FieldValidator field = 65020;
+}
+
+extend google.protobuf.OneofOptions {
+    optional OneofValidator oneof = 65021;
+}
+
+message FieldValidator {
+    // 正则表达式
+    optional string regex = 1;
+
+    // 整型字段值大于此值(默认0时不做判断)
+    optional int64 int_gt = 2;
+
+    // 整型字段值大于等于此值(默认0时不做判断)
+    optional int64 int_gte = 3;
+
+    // 整型字段值小于此值(默认0时不做判断)
+    optional int64 int_lt = 4;
+
+    // 整型字段值小于等于此值(默认0时不做判断)
+    optional int64 int_lte = 5;
+
+    // 整型字段值等于此值(默认0时不做判断)
+    optional int64 int_eq = 6;
+
+    // 消息是否存在
+    optional bool msg_exists = 7;
+
+    // 自定义的错误描述
+    optional string human_error = 8;
+
+    // 字段内容值大于此值，配合 float_epsilon 使用
+    optional double float_gt = 9;
+
+    // 字符内容值小于此值，配合 float_epsilon 使用
+    optional double float_lt = 10;
+
+    // 符点偏差， 对于float_lt就是 +float_epsilon， 对于 float_gt就是 -float_epsilon
+    optional double float_epsilon = 11;
+
+    // 字段内容应大于或等于此值
+    optional double float_gte = 12;
+
+    // 字段内容应小于或等于此值
+    optional double float_lte = 13;
+
+    // 要求字符串不能为空
+    optional bool string_not_empty = 14;
+
+    // 数组， 包含至少这个数目的元素
+    optional int64 repeated_count_min = 15;
+
+    // 数组，最多包含此数目的元素
+    optional int64 repeated_count_max = 16;
+
+    // 长度大于此值的字段值(默认值为0表示什么都不做)
+    optional int64 length_gt = 17;
+
+    // 长度大于等于此值的字段值(默认认值为0表示什么都不做)
+    optional int64 length_gte = 18;
+
+    // 长度小于此值的字段值(默认认值为0表示什么都不做)
+    optional int64 length_lt = 19;
+
+    // 长度小于等于此值的字段值(默认认值为0表示什么都不做)
+    optional int64 length_lte = 20;
+
+    // 长度等于此值的字段值(默认认值为0表示什么都不做)
+    optional int64 length_eq = 21;
+
+    // 字段值必须在枚举中
+    optional bool is_in_enum = 22;
+
+    // 是否为一个有效的uuid格式，uuid_ver提定版本（0-5）
+    optional int32 uuid_ver = 23;
+
+    // 是否一个有效的url
+    optional bool url = 24;
+
+    // 是否一个有效的http地址
+    optional bool http_url = 25;
+
+    // 是不是一个有效的文件路径
+    optional bool file_path = 26;
+
+    // 是否符合date_time表达的日期时间格式,符合golang定义的关于时间格式化的
+    optional string date_time = 27;
+
+    // 是否符合ip, v4 或者 v6
+    optional bool ip = 28;
+
+    // 是否符合ipv4
+    optional bool ipv4 = 29;
+
+    // 是否符合ipv6
+    optional bool ipv6 = 30;
+
+    // 是否符合 json
+    optional bool json = 31;
+
+    // 是否符合 ascii
+    optional bool ascii = 32;
+
+    // 是否符合可打印的 ascii
+    optional bool printable_ascii = 33;
+
+    // 只包含 字母与字符串，符合(a-zA-Z0-9)
+    optional bool alpha_numeric = 34;
+
+    // 只包含 字母， 符合(a-zA-Z)
+    optional bool alpha = 35;
+
+    // 是否符合base64编码
+    optional bool base64 = 36;
+
+    // 是否符合指定的哈希算法['md4', 'md5', 'sha1', 'sha256', 'sha384', 'sha512', 'ripemd128', 'ripemd160', 'tiger128', 'tiger160', 'tiger192', 'crc32', 'crc32b']
+    optional string hash_algo = 37;
+
+    // 是否符合十六进制
+    optional bool hex = 38;
+
+    // 是否符合十六进制颜色
+    optional bool hex_color = 39;
+
+    // 是否符合rgb颜值
+    optional bool rgb_color = 40;
+
+    // 是否符合 mac 地址
+    optional bool mac = 41;
+
+    // 是否符合维度
+    optional bool latitude = 42;
+
+    // 是否符合经度
+    optional bool longitude = 43;
+
+    // 是否符合email地址
+    optional bool email = 44;
+}
+
+message OneofValidator {
+    // oneof必须设置其中一个字段，不能为空
+    optional bool required = 1;
+}
